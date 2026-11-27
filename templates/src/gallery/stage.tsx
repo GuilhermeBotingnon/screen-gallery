@@ -209,6 +209,8 @@ export async function mountScreen(screen: ListedScreen | undefined, dark: boolea
   }
   const root = stageRoot;
   document.documentElement.classList.toggle("dark", dark);
+  document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  document.documentElement.style.backgroundColor = dark ? "#000000" : "#ffffff";
 
   if (!screen) {
     root.render(

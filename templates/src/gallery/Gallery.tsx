@@ -1,7 +1,7 @@
 /**
  * Dev-only screen gallery (excluded from production build):
- * self-contained CSS (zero Tailwind/UI-lib dependency) so the shell never breaks
- * even if the host app does not use Tailwind or its stylesheet fails to load.
+ * self-contained monochrome CSS (zero Tailwind/UI-lib dependency) so the shell
+ * never breaks even if the host app does not use Tailwind or its stylesheet fails to load.
  */
 import { useEffect, useRef, useState } from "react";
 import { SCREENS } from "./catalog";
@@ -9,6 +9,7 @@ import { SCREENS } from "./catalog";
 type Preferences = {
   device: "desktop" | "mobile";
   theme: "light" | "dark";
+  sidebar: boolean;
 };
 
 const STORAGE_KEY = "dev:screen-gallery";
@@ -18,10 +19,11 @@ function readPreferences(): Preferences {
     return {
       device: "desktop",
       theme: "light",
+      sidebar: true,
       ...JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"),
     };
   } catch {
-    return { device: "desktop", theme: "light" };
+    return { device: "desktop", theme: "light", sidebar: true };
   }
 }
 
@@ -34,84 +36,159 @@ const GROUPS = [...new Set(SCREENS.map((s) => s.group))];
 
 const GALLERY_CSS = `
 .sg-shell {
+  --sg-bg: #f4f4f5;
+  --sg-surface: #ffffff;
+  --sg-surface-hover: #f4f4f5;
+  --sg-border: #e4e4e7;
+  --sg-text: #000000;
+  --sg-muted: #71717a;
+  --sg-active-bg: #000000;
+  --sg-active-text: #ffffff;
+  --sg-frame-bg: #ffffff;
   display: flex;
   height: 100vh;
   width: 100%;
-  background: #f5f5f4;
-  color: #1c1917;
+  background: var(--sg-bg);
+  color: var(--sg-text);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   box-sizing: border-box;
+}
+.sg-shell[data-theme="dark"] {
+  --sg-bg: #000000;
+  --sg-surface: #0a0a0a;
+  --sg-surface-hover: #18181b;
+  --sg-border: #27272a;
+  --sg-text: #ffffff;
+  --sg-muted: #a1a1aa;
+  --sg-active-bg: #ffffff;
+  --sg-active-text: #000000;
+  --sg-frame-bg: #000000;
 }
 .sg-shell *, .sg-shell *::before, .sg-shell *::after {
   box-sizing: border-box;
 }
+.sg-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sg-scroll::-webkit-scrollbar {
+  display: none;
+}
 .sg-nav {
-  width: 288px;
+  width: 216px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  border-right: 1px solid #e7e5e4;
-  background: #ffffff;
+  border-right: 1px solid var(--sg-border);
+  background: var(--sg-surface);
+  transition: width 140ms ease;
+}
+.sg-nav--collapsed {
+  width: 0;
+  border-right: 0;
+  overflow: hidden;
 }
 .sg-nav-header {
   position: sticky;
   top: 0;
-  border-bottom: 1px solid #e7e5e4;
-  background: #ffffff;
-  padding: 12px 16px;
+  z-index: 2;
+  border-bottom: 1px solid var(--sg-border);
+  background: var(--sg-surface);
+  padding: 10px 12px;
 }
 .sg-nav-title {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 .sg-nav-sub {
-  margin: 2px 0 0;
+  margin: 2px 0 8px;
+  font-size: 11px;
+  color: var(--sg-muted);
+}
+.sg-search {
+  width: 100%;
+  border: 1px solid var(--sg-border);
+  border-radius: 6px;
+  background: var(--sg-bg);
+  color: var(--sg-text);
+  padding: 5px 8px;
   font-size: 12px;
-  color: #78716c;
+  outline: none;
+}
+.sg-search::placeholder {
+  color: var(--sg-muted);
+}
+.sg-search:focus {
+  border-color: var(--sg-text);
 }
 .sg-group {
-  padding: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--sg-border);
 }
-.sg-group-title {
-  margin: 0;
-  padding: 0 8px 4px;
-  font-size: 11px;
-  font-weight: 600;
+.sg-group:last-child {
+  border-bottom: 0;
+}
+.sg-group-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  background: transparent;
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #a8a29e;
+  letter-spacing: 0.06em;
+  color: var(--sg-muted);
+  cursor: pointer;
+}
+.sg-group-btn:hover {
+  color: var(--sg-text);
+}
+.sg-group-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
 }
 .sg-list {
   list-style: none;
-  margin: 0;
+  margin: 2px 0 0;
   padding: 0;
 }
 .sg-link {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
   border-radius: 6px;
-  padding: 5px 8px;
-  font-size: 13px;
-  color: #44403c;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--sg-text);
   text-decoration: none;
+  opacity: 0.82;
 }
 .sg-link:hover {
-  background: #f5f5f4;
+  background: var(--sg-surface-hover);
+  opacity: 1;
 }
 .sg-link[aria-current="page"] {
-  background: #1c1917;
-  color: #ffffff;
+  background: var(--sg-active-bg);
+  color: var(--sg-active-text);
+  opacity: 1;
+  font-weight: 600;
 }
 .sg-link--state {
-  padding-left: 24px;
+  padding-left: 20px;
+  font-size: 11px;
 }
 .sg-num {
-  width: 32px;
+  width: 26px;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
-  opacity: 0.6;
+  opacity: 0.55;
+  font-size: 11px;
 }
 .sg-name {
   overflow: hidden;
@@ -128,20 +205,25 @@ const GALLERY_CSS = `
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid #e7e5e4;
-  background: #ffffff;
-  padding: 12px 16px;
+  gap: 10px;
+  border-bottom: 1px solid var(--sg-border);
+  background: var(--sg-surface);
+  padding: 8px 12px;
 }
 .sg-select {
   display: none;
   width: 100%;
   border-radius: 6px;
-  border: 1px solid #d6d3d1;
-  padding: 6px 8px;
-  font-size: 14px;
-  background: #ffffff;
-  color: #1c1917;
+  border: 1px solid var(--sg-border);
+  padding: 5px 8px;
+  font-size: 13px;
+  background: var(--sg-surface);
+  color: var(--sg-text);
+}
+.sg-select--visible {
+  display: block;
+  width: auto;
+  max-width: 220px;
 }
 .sg-meta {
   min-width: 0;
@@ -149,21 +231,13 @@ const GALLERY_CSS = `
 }
 .sg-crumb {
   margin: 0;
-  font-size: 12px;
-  color: #78716c;
+  font-size: 11px;
+  color: var(--sg-muted);
 }
 .sg-h1 {
-  margin: 2px 0;
-  font-size: 16px;
+  margin: 1px 0 0;
+  font-size: 14px;
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sg-desc {
-  margin: 0;
-  font-size: 13px;
-  color: #57534e;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -172,46 +246,47 @@ const GALLERY_CSS = `
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .sg-toggle {
   display: inline-flex;
-  border-radius: 8px;
-  border: 1px solid #d6d3d1;
-  background: #ffffff;
+  border-radius: 7px;
+  border: 1px solid var(--sg-border);
+  background: var(--sg-bg);
   padding: 2px;
 }
 .sg-toggle-btn {
   border: 0;
   background: transparent;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  color: #57534e;
+  border-radius: 5px;
+  padding: 3px 9px;
+  font-size: 11px;
+  color: var(--sg-muted);
   cursor: pointer;
 }
 .sg-toggle-btn:hover {
-  background: #f5f5f4;
+  color: var(--sg-text);
 }
 .sg-toggle-btn[aria-pressed="true"] {
-  background: #1c1917;
-  color: #ffffff;
+  background: var(--sg-active-bg);
+  color: var(--sg-active-text);
+  font-weight: 600;
 }
 .sg-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border-radius: 8px;
-  border: 1px solid #d6d3d1;
-  background: #ffffff;
-  color: #1c1917;
-  padding: 5px 10px;
-  font-size: 12px;
+  border-radius: 7px;
+  border: 1px solid var(--sg-border);
+  background: var(--sg-surface);
+  color: var(--sg-text);
+  padding: 4px 9px;
+  font-size: 11px;
   cursor: pointer;
   text-decoration: none;
 }
 .sg-btn:hover {
-  background: #f5f5f4;
+  background: var(--sg-surface-hover);
 }
 .sg-stage {
   display: flex;
@@ -219,31 +294,33 @@ const GALLERY_CSS = `
   flex: 1;
   justify-content: center;
   overflow: auto;
-  padding: 12px;
+  padding: 10px;
 }
 .sg-stage--mobile {
-  padding: 24px;
+  padding: 20px;
 }
 .sg-frame-desktop {
   height: 100%;
   width: 100%;
   border-radius: 8px;
-  border: 1px solid #d6d3d1;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--sg-border);
+  background: var(--sg-frame-bg);
+  transition: opacity 100ms ease;
 }
 .sg-frame-mobile {
   height: 772px;
   width: 372px;
   flex-shrink: 0;
   border-radius: 28px;
-  border: 6px solid #292524;
-  background: #ffffff;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12);
+  border: 6px solid #18181b;
+  background: var(--sg-frame-bg);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);
+  transition: opacity 100ms ease;
 }
 @media (max-width: 899px) {
   .sg-nav { display: none; }
   .sg-select { display: block; }
+  .sg-sidebar-toggle { display: none; }
 }
 `;
 
@@ -272,8 +349,10 @@ function Toggle<T extends string>(props: {
 export function Gallery() {
   const [id, setId] = useState(idFromHash);
   const [pref, setPref] = useState(readPreferences);
+  const [query, setQuery] = useState("");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [iframeReady, setIframeReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const iframeLoadedRef = useRef(false);
 
   useEffect(() => {
     const onHashChange = () => setId(idFromHash());
@@ -304,49 +383,85 @@ export function Gallery() {
   };
 
   useEffect(() => {
-    if (iframeLoadedRef.current) syncIframe();
-  }, [id, pref.theme]);
+    if (iframeReady) syncIframe();
+  }, [id, pref.theme, iframeReady]);
+
+  const q = query.trim().toLowerCase();
+  const matches = (name: string, group: string) =>
+    !q || name.toLowerCase().includes(q) || group.toLowerCase().includes(q);
 
   return (
-    <div className="sg-shell">
+    <div className="sg-shell" data-theme={pref.theme}>
       <style>{GALLERY_CSS}</style>
-      <nav className="sg-nav">
+      <nav className={`sg-nav sg-scroll ${pref.sidebar ? "" : "sg-nav--collapsed"}`}>
         <header className="sg-nav-header">
           <p className="sg-nav-title">Screen Gallery</p>
-          <p className="sg-nav-sub">{SCREENS.length} screens, synthetic data</p>
+          <p className="sg-nav-sub">{SCREENS.length} screens · B&amp;W</p>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter screens..."
+            aria-label="Filter screens"
+            className="sg-search"
+          />
         </header>
-        {GROUPS.map((group) => (
-          <section key={group} className="sg-group">
-            <h2 className="sg-group-title">{group}</h2>
-            <ul className="sg-list">
-              {SCREENS.filter((s) => s.group === group).map((s) => (
-                <li key={s.id}>
-                  <a
-                    href={`#${s.id}`}
-                    aria-current={s.id === id ? "page" : undefined}
-                    className={`sg-link ${s.number.includes("·") ? "sg-link--state" : ""}`}
-                  >
-                    <span className="sg-num">{s.number}</span>
-                    <span className="sg-name">
-                      {s.number.includes("·") ? s.name.split(": ")[1] : s.name}
-                    </span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        {GROUPS.map((group) => {
+          const items = SCREENS.filter((s) => s.group === group && matches(s.name, group));
+          if (items.length === 0) return null;
+          const isOpen = q ? true : !collapsed[group];
+          return (
+            <section key={group} className="sg-group">
+              <button
+                type="button"
+                onClick={() => setCollapsed((prev) => ({ ...prev, [group]: !prev[group] }))}
+                className="sg-group-btn"
+              >
+                <span>
+                  {isOpen ? "▾" : "▸"} {group}
+                </span>
+                <span className="sg-group-count">{items.length}</span>
+              </button>
+              {isOpen && (
+                <ul className="sg-list">
+                  {items.map((s) => (
+                    <li key={s.id}>
+                      <a
+                        href={`#${s.id}`}
+                        aria-current={s.id === id ? "page" : undefined}
+                        className={`sg-link ${s.number.includes("·") ? "sg-link--state" : ""}`}
+                      >
+                        <span className="sg-num">{s.number}</span>
+                        <span className="sg-name">
+                          {s.number.includes("·") ? s.name.split(": ")[1] : s.name}
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })}
       </nav>
 
       <main className="sg-main">
         <header className="sg-topbar">
+          <button
+            type="button"
+            onClick={() => setPref((p) => ({ ...p, sidebar: !p.sidebar }))}
+            title={pref.sidebar ? "Hide sidebar" : "Show sidebar"}
+            className="sg-btn sg-sidebar-toggle"
+          >
+            {pref.sidebar ? "◧" : "☰"}
+          </button>
           <select
             aria-label="Screen"
             value={id}
             onChange={(e) => {
               location.hash = e.target.value;
             }}
-            className="sg-select"
+            className={`sg-select ${pref.sidebar ? "" : "sg-select--visible"}`}
           >
             {GROUPS.map((group) => (
               <optgroup key={group} label={group}>
@@ -360,12 +475,11 @@ export function Gallery() {
           </select>
           <div className="sg-meta">
             <p className="sg-crumb">
-              {screen?.group} · screen {index + 1} of {SCREENS.length} · <code>#{id}</code>
+              {screen?.group} · {index + 1}/{SCREENS.length} · <code>#{id}</code>
             </p>
             <h1 className="sg-h1">
               {screen?.number} {screen?.name}
             </h1>
-            <p className="sg-desc">{screen?.description}</p>
           </div>
           <div className="sg-controls">
             <Toggle
@@ -401,14 +515,15 @@ export function Gallery() {
             </a>
           </div>
         </header>
-        <div className={`sg-stage ${isMobile ? "sg-stage--mobile" : ""}`}>
+        <div className={`sg-stage sg-scroll ${isMobile ? "sg-stage--mobile" : ""}`}>
           <iframe
             ref={iframeRef}
             src={initialSrc}
             onLoad={() => {
-              iframeLoadedRef.current = true;
+              setIframeReady(true);
               syncIframe();
             }}
+            style={{ opacity: iframeReady ? 1 : 0 }}
             title={screen?.name ?? "Screen"}
             className={isMobile ? "sg-frame-mobile" : "sg-frame-desktop"}
           />
