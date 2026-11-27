@@ -11,12 +11,14 @@ function printHelp() {
 
 Usage:
   screen-gallery init [--framework vite|next] [--dir <path>] [--force]
+  screen-gallery install-skill [--agent all|antigravity|claude|codex|cursor] [--dir <path>]
   screen-gallery add-screen <name> [--group <group>] [--path <route>] [--auth] [--dir <path>]
   screen-gallery add-component <name> [--group <group>] [--dir <path>]
   screen-gallery check [--dir <path>]
 
 Commands:
   init            Scaffold gallery files (auto-detects Vite vs Next.js unless --framework is passed)
+  install-skill   Install skill/rules into .agents, .claude, .codex, and/or .cursor in target project
   add-screen      Print a ready-to-paste screen entry for src/gallery/catalog.ts
   add-component   Print a ready-to-paste isolated component entry for src/gallery/catalog.ts
   check           Verify required gallery files exist in the target directory
@@ -167,6 +169,33 @@ function cmdCheck(targetDir) {
   if (missing > 0) process.exit(1);
 }
 
+function cmdInstallSkill(targetDir, agent) {
+  const repoRoot = path.resolve(__dirname, "..");
+  const targets = agent === "all" ? ["antigravity", "claude", "codex", "cursor"] : [agent];
+  const copySkill = (dest) => {
+    fs.mkdirSync(dest, { recursive: true });
+    for (const item of ["SKILL.md", "AGENTS.md", "CLAUDE.md", "bin", "templates"]) {
+      fs.cpSync(path.join(repoRoot, item), path.join(dest, item), { recursive: true });
+    }
+    console.log(`  install ${path.relative(targetDir, dest)}`);
+  };
+
+  for (const t of targets) {
+    if (t === "antigravity") copySkill(path.join(targetDir, ".agents/skills/screen-gallery"));
+    else if (t === "claude") copySkill(path.join(targetDir, ".claude/skills/screen-gallery"));
+    else if (t === "codex") copySkill(path.join(targetDir, ".codex/skills/screen-gallery"));
+    else if (t === "cursor") {
+      const dest = path.join(targetDir, ".cursor/rules/screen-gallery.mdc");
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(path.join(repoRoot, ".cursor/rules/screen-gallery.mdc"), dest);
+      console.log(`  install ${path.relative(targetDir, dest)}`);
+    } else {
+      console.error(`Unknown agent: ${t}. Use all, antigravity, claude, codex, or cursor.`);
+      process.exit(1);
+    }
+  }
+}
+
 const args = process.argv.slice(2);
 const cmd = args.find((a) => !a.startsWith("-"));
 
@@ -179,6 +208,7 @@ const targetDir = path.resolve(getFlag(args, "--dir", process.cwd()));
 const framework = getFlag(args, "--framework", detectFramework(targetDir));
 
 if (cmd === "init") copyTemplates(targetDir, framework, args.includes("--force"));
+else if (cmd === "install-skill") cmdInstallSkill(targetDir, getFlag(args, "--agent", "all"));
 else if (cmd === "add-screen") cmdAddScreen(args);
 else if (cmd === "add-component") cmdAddComponent(args);
 else if (cmd === "check") cmdCheck(targetDir);

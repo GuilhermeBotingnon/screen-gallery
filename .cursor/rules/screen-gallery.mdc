@@ -1,0 +1,15 @@
+---
+description: Scaffold and maintain a zero-config, full-page dev screen gallery (Vite or Next.js) with in-memory fetch/storage mocks, mandatory auth mocking, ErrorBoundary, and animation/GIF previews.
+globs:
+alwaysApply: false
+---
+
+# Screen Gallery (Cursor Rule)
+
+When the user asks to set up, update, or maintain a screen gallery / dev UI previewer:
+
+1. Run `node .agents/skills/screen-gallery/bin/cli.mjs init` (or `npx screen-gallery init`) in the frontend root (`vite.config.*` or `next.config.*`).
+2. Read `SKILL.md` and `AGENTS.md` from the `screen-gallery` folder.
+3. Map all public & protected routes, global shells (`AppShell`), exact `/api/*` TypeScript payload shapes, and mandatory auth/session mocks (`GET /api/me` or `storage`).
+4. Detect animations (`motion`, CSS keyframes, Lottie) and media (`.gif`, `.webp`, animated SVGs) and add dedicated gallery previews.
+5. Use only synthetic data and `@example.test` emails. Verify with `tsc --noEmit` and `src/gallery/catalog.test.ts`.

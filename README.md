@@ -76,19 +76,20 @@ Without a session mock, protected routes often stay stuck on a loading spinner o
 
 ## Using as an AI Agent Skill (All Agents)
 
-This repository follows the universal **`SKILL.md`** standard.
+Supports **Antigravity, Gemini CLI, Claude Code, Codex, and Cursor** out of the box (`SKILL.md`, `AGENTS.md`, `CLAUDE.md`, and `.cursor/rules/screen-gallery.mdc`).
 
-### Antigravity / Gemini CLI / Codex / Cursor
+### One-command install for all agents in your project
 ```bash
-mkdir -p .agents/skills
-git clone https://github.com/GuilhermeBotingnon/screen-gallery.git .agents/skills/screen-gallery
+git clone https://github.com/GuilhermeBotingnon/screen-gallery.git /tmp/sg && \
+  node /tmp/sg/bin/cli.mjs install-skill --agent all && \
+  rm -rf /tmp/sg
 ```
 
-### Claude Code
-```bash
-mkdir -p ~/.claude/skills
-git clone https://github.com/GuilhermeBotingnon/screen-gallery.git ~/.claude/skills/screen-gallery
-```
+Or install only for your agent (`--agent antigravity|claude|codex|cursor`), or manually:
+- **Antigravity / Gemini CLI:** `.agents/skills/screen-gallery/`
+- **Claude Code:** `.claude/skills/screen-gallery/` (or `~/.claude/skills/screen-gallery/`)
+- **Codex:** `.codex/skills/screen-gallery/`
+- **Cursor:** `.cursor/rules/screen-gallery.mdc`
 
 Once installed, ask your AI agent:
 > *"Set up screen-gallery for this frontend, mock our auth session, and catalog all routes, states, and key components using synthetic data."*
