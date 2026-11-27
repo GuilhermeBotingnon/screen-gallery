@@ -1,0 +1,29 @@
+{
+  "name": "screen-gallery",
+  "version": "0.1.0",
+  "description": "Zero-config, full-page dev screen gallery for Vite + React apps and AI coding agents.",
+  "type": "module",
+  "bin": {
+    "screen-gallery": "./bin/cli.mjs"
+  },
+  "files": [
+    "bin/",
+    "templates/",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "vite",
+    "react",
+    "ui-gallery",
+    "storybook-alternative",
+    "agent-skills",
+    "ai-coding"
+  ],
+  "author": "Guilherme Botingnon",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
