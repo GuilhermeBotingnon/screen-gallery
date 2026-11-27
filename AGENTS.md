@@ -12,8 +12,10 @@ When installed or invoked in any frontend project, follow these steps automatica
    - Inspect the router (`App.tsx`, route tables, lazy pages) to list every public and protected route.
    - Inspect global shells/layouts (e.g., `AppShell`, navbars, polling hooks, notification providers).
    - Inspect every `fetch("/api/...")` or API client call and its TypeScript types. **Never guess mock JSON shapes** — match exact expected fields and arrays (`[]`).
-3. **Mandatory Auth Mocking**:
-   - If the app has login or protected routes, mock the session endpoint (e.g., `GET /api/me`, `GET /api/auth/session`) and/or `storage` tokens for authenticated screens, and return `401` for visitor screens.
+3. **100% Mock Data & Mandatory Auth Mocking**:
+   - Every screen, form, mutation (`POST`/`PUT`/`DELETE`), and function in the gallery MUST be 100% backed by mock data in `src/gallery/catalog.ts` — zero real backend or real login required.
+   - Inspect exact TypeScript types and numeric/array fields (including global shells and KPIs) so nothing renders `NaN` or crashes on `undefined`.
+   - For protected routes, mock BOTH the session endpoint (e.g., `GET /api/me`, `GET /api/auth/session`) AND any `storage` tokens/JWTs so `ProtectedRoute` never redirects to `/login` (`window.location.href`). Return `401` only for `Visitor` screens.
 4. **Animations & Rich Media (GIFs, Motion, Lottie, CSS)**:
    - Detect animation libraries (`motion` / `framer-motion`, GSAP, Lottie, CSS `@keyframes` / transitions) and media assets (`.gif`, `.mp4`, `.webp`, animated `.svg`) in the project.
    - Include dedicated screens/states in `src/gallery/catalog.ts` to preview key animations, transitions, and GIF/media assets (e.g., loading skeletons, interactive drawers/modals via `steps`, or isolated animated components via `component: () => ...`).
