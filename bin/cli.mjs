@@ -38,12 +38,23 @@ function detectFramework(targetDir) {
   return "vite";
 }
 
+function hasVitest(targetDir) {
+  const pkgPath = path.join(targetDir, "package.json");
+  if (!fs.existsSync(pkgPath)) return false;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+    return Boolean(pkg.dependencies?.vitest || pkg.devDependencies?.vitest);
+  } catch {
+    return false;
+  }
+}
+
 function copyTemplates(targetDir, framework, force, entry = "gallery") {
   const common = [
     ["src/gallery/Gallery.tsx", "src/gallery/Gallery.tsx"],
     ["src/gallery/stage.tsx", "src/gallery/stage.tsx"],
     ["src/gallery/catalog.ts", "src/gallery/catalog.ts"],
-    ["src/gallery/catalog.test.ts", "src/gallery/catalog.test.ts"],
+    ...(hasVitest(targetDir) ? [["src/gallery/catalog.test.ts", "src/gallery/catalog.test.ts"]] : []),
   ];
 
   const viteHtmlDest = entry === "index" ? "index.html" : "gallery.html";
@@ -159,7 +170,7 @@ function cmdCheck(targetDir) {
     "src/gallery/Gallery.tsx",
     "src/gallery/stage.tsx",
     "src/gallery/catalog.ts",
-    "src/gallery/catalog.test.ts",
+    ...(hasVitest(targetDir) ? ["src/gallery/catalog.test.ts"] : []),
     ...(framework === "next"
       ? [hasSrcApp ? "src/app/gallery/page.tsx" : "app/gallery/page.tsx", "src/gallery/NextGalleryApp.tsx"]
       : ["gallery.html", "src/gallery/main.tsx"]),
