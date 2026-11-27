@@ -289,7 +289,8 @@ export function Gallery() {
     const target = SCREENS[(index + step + SCREENS.length) % SCREENS.length];
     if (target) location.hash = target.id;
   };
-  const src = `/gallery.html?screen=${id}&theme=${pref.theme}`;
+  const base = location.pathname.endsWith(".html") ? location.pathname : "/gallery";
+  const src = `${base}?screen=${id}&theme=${pref.theme}`;
   const isMobile = pref.device === "mobile";
 
   return (

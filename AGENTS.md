@@ -6,7 +6,7 @@ This repository provides a universal `SKILL.md` and zero-dependency Node CLI (`b
 
 When installed or invoked in any frontend project, follow these steps automatically:
 
-1. **Scaffold first**: Run `node <skill-dir>/bin/cli.mjs init` in the frontend root (`vite.config.*`).
+1. **Scaffold first**: Run `node <skill-dir>/bin/cli.mjs init` in the frontend root (`vite.config.*` or `next.config.*`). The CLI auto-detects **Vite** (`gallery.html` + `src/App.tsx`) vs **Next.js** (`app/gallery/page.tsx` or `src/app/gallery/page.tsx` + `src/gallery/NextGalleryApp.tsx`). For Next.js, map your real pages inside `NextGalleryApp.tsx`.
 2. **Map the entire structure**:
    - Inspect the router (`App.tsx`, route tables, lazy pages) to list every public and protected route.
    - Inspect global shells/layouts (e.g., `AppShell`, navbars, polling hooks, notification providers).

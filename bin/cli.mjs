@@ -7,16 +7,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const templatesDir = path.resolve(__dirname, "../templates");
 
 function printHelp() {
-  console.log(`screen-gallery — Zero-config full-page dev gallery for Vite + React
+  console.log(`screen-gallery — Zero-config full-page dev gallery for Vite & Next.js
 
 Usage:
-  screen-gallery init [--dir <path>] [--force]
+  screen-gallery init [--framework vite|next] [--dir <path>] [--force]
   screen-gallery add-screen <name> [--group <group>] [--path <route>] [--auth] [--dir <path>]
   screen-gallery add-component <name> [--group <group>] [--dir <path>]
   screen-gallery check [--dir <path>]
 
 Commands:
-  init            Scaffold gallery.html and src/gallery/* in your frontend root
+  init            Scaffold gallery files (auto-detects Vite vs Next.js unless --framework is passed)
   add-screen      Print a ready-to-paste screen entry for src/gallery/catalog.ts
   add-component   Print a ready-to-paste isolated component entry for src/gallery/catalog.ts
   check           Verify required gallery files exist in the target directory
@@ -28,15 +28,33 @@ function getFlag(args, flag, fallback = undefined) {
   return idx !== -1 && args[idx + 1] && !args[idx + 1].startsWith("-") ? args[idx + 1] : fallback;
 }
 
-function copyTemplates(targetDir, force) {
-  const files = [
-    ["gallery.html", "gallery.html"],
-    ["src/gallery/main.tsx", "src/gallery/main.tsx"],
+function detectFramework(targetDir) {
+  const files = fs.existsSync(targetDir) ? fs.readdirSync(targetDir) : [];
+  if (files.some((f) => /^next\.config\./.test(f))) return "next";
+  return "vite";
+}
+
+function copyTemplates(targetDir, framework, force) {
+  const common = [
     ["src/gallery/Gallery.tsx", "src/gallery/Gallery.tsx"],
     ["src/gallery/stage.tsx", "src/gallery/stage.tsx"],
     ["src/gallery/catalog.ts", "src/gallery/catalog.ts"],
     ["src/gallery/catalog.test.ts", "src/gallery/catalog.test.ts"],
   ];
+
+  const viteFiles = [
+    ["gallery.html", "gallery.html"],
+    ["src/gallery/main.tsx", "src/gallery/main.tsx"],
+  ];
+
+  const hasSrcApp = fs.existsSync(path.join(targetDir, "src/app"));
+  const nextAppBase = hasSrcApp ? "src/app/gallery/page.tsx" : "app/gallery/page.tsx";
+  const nextFiles = [
+    ["next/app/gallery/page.tsx", nextAppBase],
+    ["next/NextGalleryApp.tsx", "src/gallery/NextGalleryApp.tsx"],
+  ];
+
+  const files = [...common, ...(framework === "next" ? nextFiles : viteFiles)];
 
   let created = 0;
   let skipped = 0;
@@ -50,13 +68,29 @@ function copyTemplates(targetDir, force) {
       continue;
     }
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(src, dest);
+    if (framework === "next" && srcRel === "src/gallery/stage.tsx") {
+      const content = fs
+        .readFileSync(src, "utf8")
+        .replace('import App from "../App";', 'import App from "./NextGalleryApp";');
+      fs.writeFileSync(dest, content);
+    } else if (framework === "next" && srcRel === "next/app/gallery/page.tsx" && hasSrcApp) {
+      const content = fs
+        .readFileSync(src, "utf8")
+        .replaceAll("../../src/gallery/", "../../gallery/");
+      fs.writeFileSync(dest, content);
+    } else {
+      fs.copyFileSync(src, dest);
+    }
     console.log(`  write ${destRel}`);
     created++;
   }
 
-  console.log(`\nDone: ${created} written, ${skipped} skipped.`);
-  console.log("Start Vite and open: http://localhost:5173/gallery.html");
+  console.log(`\nDone (${framework}): ${created} written, ${skipped} skipped.`);
+  if (framework === "next") {
+    console.log("Start Next.js dev server and open: http://localhost:3000/gallery");
+  } else {
+    console.log("Start Vite and open: http://localhost:5173/gallery.html");
+  }
 }
 
 function cmdAddScreen(args) {
@@ -113,13 +147,16 @@ function cmdAddComponent(args) {
 }
 
 function cmdCheck(targetDir) {
+  const framework = detectFramework(targetDir);
+  const hasSrcApp = fs.existsSync(path.join(targetDir, "src/app"));
   const required = [
-    "gallery.html",
-    "src/gallery/main.tsx",
     "src/gallery/Gallery.tsx",
     "src/gallery/stage.tsx",
     "src/gallery/catalog.ts",
     "src/gallery/catalog.test.ts",
+    ...(framework === "next"
+      ? [hasSrcApp ? "src/app/gallery/page.tsx" : "app/gallery/page.tsx", "src/gallery/NextGalleryApp.tsx"]
+      : ["gallery.html", "src/gallery/main.tsx"]),
   ];
   let missing = 0;
   for (const rel of required) {
@@ -139,8 +176,9 @@ if (args.includes("-h") || args.includes("--help") || !cmd) {
 }
 
 const targetDir = path.resolve(getFlag(args, "--dir", process.cwd()));
+const framework = getFlag(args, "--framework", detectFramework(targetDir));
 
-if (cmd === "init") copyTemplates(targetDir, args.includes("--force"));
+if (cmd === "init") copyTemplates(targetDir, framework, args.includes("--force"));
 else if (cmd === "add-screen") cmdAddScreen(args);
 else if (cmd === "add-component") cmdAddComponent(args);
 else if (cmd === "check") cmdCheck(targetDir);

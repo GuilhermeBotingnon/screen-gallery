@@ -31,20 +31,18 @@
 
 ## CLI Commands
 
-From your Vite + React app root (where `index.html` and `vite.config.*` live):
+From your **Vite + React** or **Next.js (App Router)** root (the CLI auto-detects `vite.config.*` vs `next.config.*`):
 
 ```bash
-npx screen-gallery init                                      # Scaffold gallery.html + src/gallery/*
+npx screen-gallery init                                      # Scaffold Vite or Next.js gallery
 npx screen-gallery add-screen Billing --path /billing --auth # Print screen snippet with auth mock
 npx screen-gallery add-component PricingCard                 # Print isolated component snippet
 npx screen-gallery check                                     # Verify gallery files exist
 ```
 
-Then start Vite and open:
-
-```
-http://localhost:5173/gallery.html
-```
+Then start your dev server and open:
+- **Vite:** `http://localhost:5173/gallery.html`
+- **Next.js:** `http://localhost:3000/gallery` (map your pages in `src/gallery/NextGalleryApp.tsx`; disabled automatically in production builds)
 
 ---
 

@@ -9,10 +9,10 @@ Build a lightweight, zero-dependency UI gallery that renders real application ro
 
 ## CLI Commands
 
-Run from the frontend root (where `vite.config.*` and `index.html` live):
+Run from the frontend root (where `vite.config.*` or `next.config.*` lives — auto-detected, or pass `--framework vite|next`):
 
 ```bash
-node <skill-dir>/bin/cli.mjs init           # Scaffold gallery.html + src/gallery/*
+node <skill-dir>/bin/cli.mjs init           # Scaffold Vite (gallery.html) or Next.js (/gallery)
 node <skill-dir>/bin/cli.mjs add-screen Foo --path /foo --auth
 node <skill-dir>/bin/cli.mjs add-component Card
 node <skill-dir>/bin/cli.mjs check          # Verify all gallery files exist
