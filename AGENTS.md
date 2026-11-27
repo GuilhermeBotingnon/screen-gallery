@@ -6,7 +6,8 @@ This repository provides a universal `SKILL.md` and zero-dependency Node CLI (`b
 
 When installed or invoked in any frontend project, follow these steps automatically:
 
-1. **Scaffold first**: Run `node <skill-dir>/bin/cli.mjs init` in the frontend root (`vite.config.*` or `next.config.*`). The CLI auto-detects **Vite** (`gallery.html` + `src/App.tsx`) vs **Next.js** (`app/gallery/page.tsx` or `src/app/gallery/page.tsx` + `src/gallery/NextGalleryApp.tsx`). For Next.js, map your real pages inside `NextGalleryApp.tsx`.
+1. **Scaffold & scan first**: Run `node <skill-dir>/bin/cli.mjs init` (pass `--entry index` for gallery-only Vite apps) and `node <skill-dir>/bin/cli.mjs scan --write` in the frontend root (`vite.config.*` or `next.config.*`). The CLI auto-detects **Vite** (`gallery.html` + `src/App.tsx`) vs **Next.js** (`app/gallery/page.tsx` or `src/app/gallery/page.tsx` + `src/gallery/NextGalleryApp.tsx`).
+2. **Live-first real-time preview**: Ensure the dev server is running early so changes stream via Vite/Next HMR while building. Screen switching in the iframe uses `postMessage` (instant, zero reload). When creating new pages rapidly, register `component: () => import(...)` in `src/gallery/catalog.ts` immediately with `default`, `loading`, `empty`, and `error` states.
 2. **Map the entire structure**:
    - Inspect the router (`App.tsx`, route tables, lazy pages) to list every public and protected route.
    - Inspect global shells/layouts (e.g., `AppShell`, navbars, polling hooks, notification providers).

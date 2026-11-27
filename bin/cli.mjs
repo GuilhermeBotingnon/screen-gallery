@@ -10,7 +10,8 @@ function printHelp() {
   console.log(`screen-gallery — Zero-config full-page dev gallery for Vite & Next.js
 
 Usage:
-  screen-gallery init [--framework vite|next] [--dir <path>] [--force]
+  screen-gallery init [--framework vite|next] [--entry gallery|index] [--dir <path>] [--force]
+  screen-gallery scan [--dir <path>] [--write]
   screen-gallery install-skill [--agent all|antigravity|claude|codex|cursor] [--dir <path>]
   screen-gallery add-screen <name> [--group <group>] [--path <route>] [--auth] [--dir <path>]
   screen-gallery add-component <name> [--group <group>] [--dir <path>]
@@ -18,6 +19,7 @@ Usage:
 
 Commands:
   init            Scaffold gallery files (auto-detects Vite vs Next.js unless --framework is passed)
+  scan            Discover routes, components, and /api/* calls to scaffold catalog.ts fast
   install-skill   Install skill/rules into .agents, .claude, .codex, and/or .cursor in target project
   add-screen      Print a ready-to-paste screen entry for src/gallery/catalog.ts
   add-component   Print a ready-to-paste isolated component entry for src/gallery/catalog.ts
@@ -36,7 +38,7 @@ function detectFramework(targetDir) {
   return "vite";
 }
 
-function copyTemplates(targetDir, framework, force) {
+function copyTemplates(targetDir, framework, force, entry = "gallery") {
   const common = [
     ["src/gallery/Gallery.tsx", "src/gallery/Gallery.tsx"],
     ["src/gallery/stage.tsx", "src/gallery/stage.tsx"],
@@ -44,8 +46,9 @@ function copyTemplates(targetDir, framework, force) {
     ["src/gallery/catalog.test.ts", "src/gallery/catalog.test.ts"],
   ];
 
+  const viteHtmlDest = entry === "index" ? "index.html" : "gallery.html";
   const viteFiles = [
-    ["gallery.html", "gallery.html"],
+    ["gallery.html", viteHtmlDest],
     ["src/gallery/main.tsx", "src/gallery/main.tsx"],
   ];
 
@@ -91,7 +94,8 @@ function copyTemplates(targetDir, framework, force) {
   if (framework === "next") {
     console.log("Start Next.js dev server and open: http://localhost:3000/gallery");
   } else {
-    console.log("Start Vite and open: http://localhost:5173/gallery.html");
+    const urlPath = entry === "index" ? "/" : "/gallery.html";
+    console.log(`Start Vite and open: http://localhost:5173${urlPath}`);
   }
 }
 
@@ -196,6 +200,116 @@ function cmdInstallSkill(targetDir, agent) {
   }
 }
 
+function walkSourceFiles(dir, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (["node_modules", ".git", "dist", "build", ".next"].includes(ent.name)) continue;
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) {
+      if (full.endsWith(`${path.sep}src${path.sep}gallery`) || full.endsWith(`${path.sep}app${path.sep}gallery`)) continue;
+      walkSourceFiles(full, out);
+    } else if (/\.(tsx?|jsx?)$/.test(ent.name) && !/\.(test|spec)\./.test(ent.name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function toTitle(slug) {
+  return slug
+    .replace(/^\/+|\/+$/g, "")
+    .split(/[/_-]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ") || "Home";
+}
+
+function cmdScan(targetDir, write) {
+  const framework = detectFramework(targetDir);
+  const files = walkSourceFiles(targetDir);
+  const routes = new Set();
+  const apis = new Set();
+  const components = [];
+
+  for (const file of files) {
+    const rel = path.relative(targetDir, file).replace(/\\/g, "/");
+    const content = fs.readFileSync(file, "utf8");
+
+    for (const m of content.matchAll(/\bpath\s*[:=]\s*["'`]([^"'`]+)["'`]/g)) {
+      if (m[1].startsWith("/") && !m[1].includes("*")) routes.add(m[1]);
+    }
+    for (const m of content.matchAll(/["'`](\/api\/[a-zA-Z0-9_./:-]+)["'`]/g)) {
+      apis.add(m[1]);
+    }
+
+    const nextPage = rel.match(/^(?:src\/)?app(?:\/(.*))?\/page\.(tsx|jsx)$/);
+    if (nextPage) {
+      const route = "/" + (nextPage[1] ?? "").replace(/\([^)]+\)\/?/g, "");
+      routes.add(route === "/" ? "/" : route.replace(/\/+$/, ""));
+    }
+
+    const compMatch = rel.match(/^src\/components\/([A-Z][A-Za-z0-9_-]*)\.(tsx|jsx)$/);
+    if (compMatch) {
+      const name = compMatch[1];
+      const hasDefault = /export\s+default\s+/.test(content);
+      const hasNamed = new RegExp(`export\\s+(?:function|const|class)\\s+${name}\\b`).test(content);
+      if (hasDefault || hasNamed) {
+        components.push({
+          name,
+          importPath: `../components/${name}`,
+          exportExpr: hasNamed ? `.${name}` : `.default`,
+        });
+      }
+    }
+  }
+
+  if (routes.size === 0) routes.add("/");
+
+  const apiMocks = [...apis].sort().map((p) => `          "GET ${p}": { body: {} },`).join("\n");
+  const routeScreens = [...routes].sort().map((r) => `      {
+        name: "${toTitle(r)}",
+        description: "Auto-discovered route ${r}.",
+        path: "${r}",${apiMocks ? `\n        api: {\n${apiMocks}\n        },` : ""}
+      },`).join("\n");
+
+  const compScreens = components.map((c) => `      {
+        name: "${c.name}",
+        description: "Isolated ${c.name} component preview.",
+        component: async () => (await import("${c.importPath}"))${c.exportExpr},
+      },`).join("\n");
+
+  const groupsBlock = `const GROUPS: ScreenGroup[] = [
+  {
+    name: "Routes",
+    screens: [
+${routeScreens}
+    ],
+  },${compScreens ? `
+  {
+    name: "Components",
+    screens: [
+${compScreens}
+    ],
+  },` : ""}
+];`;
+
+  console.log(`Scanned (${framework}): ${routes.size} route(s), ${components.length} component(s), ${apis.size} /api/* endpoint(s).`);
+  if (apis.size > 0) {
+    console.log(`APIs found: ${[...apis].sort().join(", ")}`);
+  }
+
+  if (write) {
+    const dest = path.join(targetDir, "src/gallery/catalog.ts");
+    const template = fs.readFileSync(path.join(templatesDir, "src/gallery/catalog.ts"), "utf8");
+    const updated = template.replace(/const GROUPS: ScreenGroup\[\] = \[[\s\S]*?\n\];/, groupsBlock);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, updated);
+    console.log(`Wrote ${path.relative(targetDir, dest)}`);
+  } else {
+    console.log(`\n// Paste into src/gallery/catalog.ts (or run with --write):\n${groupsBlock}`);
+  }
+}
+
 const args = process.argv.slice(2);
 const cmd = args.find((a) => !a.startsWith("-"));
 
@@ -206,8 +320,10 @@ if (args.includes("-h") || args.includes("--help") || !cmd) {
 
 const targetDir = path.resolve(getFlag(args, "--dir", process.cwd()));
 const framework = getFlag(args, "--framework", detectFramework(targetDir));
+const entry = getFlag(args, "--entry", "gallery");
 
-if (cmd === "init") copyTemplates(targetDir, framework, args.includes("--force"));
+if (cmd === "init") copyTemplates(targetDir, framework, args.includes("--force"), entry);
+else if (cmd === "scan") cmdScan(targetDir, args.includes("--write"));
 else if (cmd === "install-skill") cmdInstallSkill(targetDir, getFlag(args, "--agent", "all"));
 else if (cmd === "add-screen") cmdAddScreen(args);
 else if (cmd === "add-component") cmdAddComponent(args);

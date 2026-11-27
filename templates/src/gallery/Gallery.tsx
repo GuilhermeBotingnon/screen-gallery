@@ -3,7 +3,7 @@
  * self-contained CSS (zero Tailwind/UI-lib dependency) so the shell never breaks
  * even if the host app does not use Tailwind or its stylesheet fails to load.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SCREENS } from "./catalog";
 
 type Preferences = {
@@ -272,6 +272,8 @@ function Toggle<T extends string>(props: {
 export function Gallery() {
   const [id, setId] = useState(idFromHash);
   const [pref, setPref] = useState(readPreferences);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeLoadedRef = useRef(false);
 
   useEffect(() => {
     const onHashChange = () => setId(idFromHash());
@@ -291,7 +293,19 @@ export function Gallery() {
   };
   const base = location.pathname.endsWith(".html") ? location.pathname : "/gallery";
   const src = `${base}?screen=${id}&theme=${pref.theme}`;
+  const [initialSrc] = useState(src);
   const isMobile = pref.device === "mobile";
+
+  const syncIframe = () => {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "sg:render", screenId: id, dark: pref.theme === "dark" },
+      "*",
+    );
+  };
+
+  useEffect(() => {
+    if (iframeLoadedRef.current) syncIframe();
+  }, [id, pref.theme]);
 
   return (
     <div className="sg-shell">
@@ -389,8 +403,12 @@ export function Gallery() {
         </header>
         <div className={`sg-stage ${isMobile ? "sg-stage--mobile" : ""}`}>
           <iframe
-            key={src}
-            src={src}
+            ref={iframeRef}
+            src={initialSrc}
+            onLoad={() => {
+              iframeLoadedRef.current = true;
+              syncIframe();
+            }}
             title={screen?.name ?? "Screen"}
             className={isMobile ? "sg-frame-mobile" : "sg-frame-desktop"}
           />

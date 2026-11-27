@@ -4,9 +4,9 @@
  * and a React ErrorBoundary + global error listener so runtime failures render clearly.
  */
 import { Component, type ErrorInfo, type ReactNode, StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import App from "../App";
-import type { ListedScreen, MockResponse, StepHelper } from "./catalog";
+import { SCREENS, type ListedScreen, type MockResponse, type StepHelper } from "./catalog";
 
 class InMemoryStorage implements Storage {
   #data = new Map<string, string>();
@@ -74,11 +74,12 @@ class GalleryErrorBoundary extends Component<
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const baseFetch = window.fetch.bind(window);
+
 function installMockApi(api: Record<string, MockResponse>) {
-  const realFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-    if (!url.pathname.startsWith("/api/")) return realFetch(input, init);
+    if (!url.pathname.startsWith("/api/")) return baseFetch(input, init);
     const method = (init?.method ?? "GET").toUpperCase();
     const res: MockResponse =
       api[`${method} ${url.pathname}`] ??
@@ -157,13 +158,17 @@ const helper: StepHelper = {
 
 function notifyError(message: string) {
   const banner = document.createElement("div");
+  banner.setAttribute("data-sg-error", "true");
   banner.textContent = `Gallery: ${message}`;
   banner.style.cssText =
     "position:fixed;bottom:8px;left:8px;right:8px;z-index:99999;padding:8px 12px;border-radius:6px;background:#b91c1c;color:#fff;font:12px system-ui";
   document.body.append(banner);
 }
 
+let errorHandlersInstalled = false;
 function installGlobalErrorHandlers() {
+  if (errorHandlersInstalled) return;
+  errorHandlersInstalled = true;
   window.addEventListener("error", (event) => {
     notifyError(event.error instanceof Error ? event.error.message : event.message);
   });
@@ -173,9 +178,36 @@ function installGlobalErrorHandlers() {
   });
 }
 
+let stageRoot: Root | null = null;
+let stageContainer: HTMLElement | null = null;
+let renderSeq = 0;
+let messageListenerInstalled = false;
+
+function installMessageListener() {
+  if (messageListenerInstalled) return;
+  messageListenerInstalled = true;
+  window.addEventListener("message", (event) => {
+    const data = event.data as { type?: string; screenId?: string; dark?: boolean } | null;
+    if (!data || data.type !== "sg:render" || !data.screenId) return;
+    void mountScreen(
+      SCREENS.find((s) => s.id === data.screenId),
+      Boolean(data.dark),
+    );
+  });
+}
+
 export async function mountScreen(screen: ListedScreen | undefined, dark: boolean) {
+  const seq = ++renderSeq;
   installGlobalErrorHandlers();
-  const root = createRoot(document.getElementById("root") as HTMLElement);
+  installMessageListener();
+  document.querySelectorAll("[data-sg-error]").forEach((el) => el.remove());
+
+  const container = document.getElementById("root") as HTMLElement;
+  if (!stageRoot || stageContainer !== container) {
+    stageContainer = container;
+    stageRoot = createRoot(container);
+  }
+  const root = stageRoot;
   document.documentElement.classList.toggle("dark", dark);
 
   if (!screen) {
@@ -195,8 +227,9 @@ export async function mountScreen(screen: ListedScreen | undefined, dark: boolea
 
   if (screen.component) {
     const Component = await screen.component();
+    if (seq !== renderSeq) return;
     root.render(
-      <GalleryErrorBoundary screenName={screen.name}>
+      <GalleryErrorBoundary key={`${screen.id}-${seq}`} screenName={screen.name}>
         <main style={{ minHeight: "100vh", padding: 24 }}>
           <Component />
         </main>
@@ -214,15 +247,17 @@ export async function mountScreen(screen: ListedScreen | undefined, dark: boolea
 
   root.render(
     <StrictMode>
-      <GalleryErrorBoundary screenName={screen.name}>
+      <GalleryErrorBoundary key={`${screen.id}-${seq}`} screenName={screen.name}>
         <App />
       </GalleryErrorBoundary>
     </StrictMode>,
   );
 
   try {
+    if (seq !== renderSeq) return;
     await screen.steps?.(helper);
   } catch (err) {
+    if (seq !== renderSeq) return;
     notifyError(err instanceof Error ? err.message : String(err));
   }
 }

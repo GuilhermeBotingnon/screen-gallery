@@ -8,8 +8,9 @@ alwaysApply: false
 
 When the user asks to set up, update, or maintain a screen gallery / dev UI previewer:
 
-1. Run `node .agents/skills/screen-gallery/bin/cli.mjs init` (or `npx screen-gallery init`) in the frontend root (`vite.config.*` or `next.config.*`).
-2. Read `SKILL.md` and `AGENTS.md` from the `screen-gallery` folder.
-3. Map all public & protected routes, global shells (`AppShell`), exact `/api/*` TypeScript payload shapes, and mandatory auth/session mocks (`GET /api/me` or `storage`).
-4. Detect animations (`motion`, CSS keyframes, Lottie) and media (`.gif`, `.webp`, animated SVGs) and add dedicated gallery previews.
-5. Use only synthetic data and `@example.test` emails. Verify with `tsc --noEmit` and `src/gallery/catalog.test.ts`.
+1. Run `node .agents/skills/screen-gallery/bin/cli.mjs init` (or `--entry index` for root `/`) and `scan --write` in the frontend root (`vite.config.*` or `next.config.*`).
+2. Read `SKILL.md` and `AGENTS.md` from the `screen-gallery` folder and start the dev server early for live HMR preview.
+3. For rapid new pages, register `component: () => import(...)` in `src/gallery/catalog.ts` immediately with `default`, `loading`, `empty`, and `error` states.
+4. Map all public & protected routes, global shells (`AppShell`), exact `/api/*` TypeScript payload shapes, and mandatory auth/session mocks (`GET /api/me` or `storage`).
+5. Detect animations (`motion`, CSS keyframes, Lottie) and media (`.gif`, `.webp`, animated SVGs) and add dedicated gallery previews.
+6. Use only synthetic data and `@example.test` emails. Verify with `tsc --noEmit` and `src/gallery/catalog.test.ts`.
