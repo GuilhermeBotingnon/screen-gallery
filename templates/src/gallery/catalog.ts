@@ -67,6 +67,12 @@ export function listScreens(groups: ScreenGroup[]): ListedScreen[] {
   return result;
 }
 
+/**
+ * IMPORTANT for apps with authentication:
+ * Always mock your session endpoint (e.g. `GET /api/me` or `GET /api/auth/session`)
+ * and/or auth token in `storage`. Otherwise protected routes may stay stuck on a
+ * loading spinner or render a blank/gray screen.
+ */
 const GROUPS: ScreenGroup[] = [
   {
     name: "Visitor",
@@ -83,6 +89,9 @@ const GROUPS: ScreenGroup[] = [
         name: "Sign in",
         description: "Authentication form.",
         path: "/login",
+        api: {
+          "GET /api/me": { status: 401, body: { error: "unauthorized" } },
+        },
         states: [
           {
             name: "invalid credentials",
@@ -94,6 +103,37 @@ const GROUPS: ScreenGroup[] = [
               await h.type("Email", "alex.silva@example.test");
               await h.type("Password", "wrong-password");
               await h.click("Sign in");
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Authenticated",
+    screens: [
+      {
+        name: "Dashboard",
+        description: "Main authenticated view with mocked user session.",
+        path: "/dashboard",
+        api: {
+          "GET /api/me": {
+            body: { id: "user-1", name: "Alex Silva", email: "alex.silva@example.test", role: "member" },
+          },
+        },
+        states: [
+          {
+            name: "loading",
+            description: "Keeps the session request pending.",
+            api: {
+              "GET /api/me": { pending: true },
+            },
+          },
+          {
+            name: "offline",
+            description: "Simulates network failure.",
+            api: {
+              "GET /api/me": { networkError: true },
             },
           },
         ],

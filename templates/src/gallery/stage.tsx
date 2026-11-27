@@ -1,8 +1,9 @@
 /**
  * Isolated screen stage inside the iframe: mounts the real <App /> at a route,
- * backed by catalog-driven `/api/*` responses and an in-memory localStorage.
+ * backed by catalog-driven `/api/*` responses, an in-memory localStorage,
+ * and a React ErrorBoundary + global error listener so runtime failures render clearly.
  */
-import { StrictMode } from "react";
+import { Component, type ErrorInfo, type ReactNode, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "../App";
 import type { ListedScreen, MockResponse, StepHelper } from "./catalog";
@@ -26,6 +27,48 @@ class InMemoryStorage implements Storage {
   }
   setItem(key: string, value: string) {
     this.#data.set(key, String(value));
+  }
+}
+
+class GalleryErrorBoundary extends Component<
+  { screenName: string; children: ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[screen-gallery] Render error in "${this.props.screenName}":`, error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div
+          style={{
+            margin: 24,
+            padding: 16,
+            borderRadius: 8,
+            border: "1px solid #fecaca",
+            background: "#fef2f2",
+            color: "#991b1b",
+            fontFamily: "system-ui, sans-serif",
+            fontSize: 13,
+          }}
+        >
+          <strong style={{ display: "block", marginBottom: 6 }}>
+            Screen Gallery: render error in "{this.props.screenName}"
+          </strong>
+          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12 }}>
+            {this.state.error.message}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
   }
 }
 
@@ -116,16 +159,31 @@ function notifyError(message: string) {
   const banner = document.createElement("div");
   banner.textContent = `Gallery: ${message}`;
   banner.style.cssText =
-    "position:fixed;bottom:8px;left:8px;z-index:99999;padding:6px 10px;border-radius:6px;background:#b91c1c;color:#fff;font:12px system-ui";
+    "position:fixed;bottom:8px;left:8px;right:8px;z-index:99999;padding:8px 12px;border-radius:6px;background:#b91c1c;color:#fff;font:12px system-ui";
   document.body.append(banner);
 }
 
+function installGlobalErrorHandlers() {
+  window.addEventListener("error", (event) => {
+    notifyError(event.error instanceof Error ? event.error.message : event.message);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
+    notifyError(reason instanceof Error ? reason.message : String(reason));
+  });
+}
+
 export async function mountScreen(screen: ListedScreen | undefined, dark: boolean) {
+  installGlobalErrorHandlers();
   const root = createRoot(document.getElementById("root") as HTMLElement);
   document.documentElement.classList.toggle("dark", dark);
 
   if (!screen) {
-    root.render(<p className="p-6 text-sm">Screen not found in catalog.</p>);
+    root.render(
+      <p style={{ padding: 24, fontFamily: "system-ui, sans-serif", fontSize: 14 }}>
+        Screen not found in catalog.
+      </p>,
+    );
     return;
   }
 
@@ -138,9 +196,11 @@ export async function mountScreen(screen: ListedScreen | undefined, dark: boolea
   if (screen.component) {
     const Component = await screen.component();
     root.render(
-      <main className="min-h-screen bg-background p-4 text-foreground sm:p-8">
-        <Component />
-      </main>,
+      <GalleryErrorBoundary screenName={screen.name}>
+        <main style={{ minHeight: "100vh", padding: 24 }}>
+          <Component />
+        </main>
+      </GalleryErrorBoundary>,
     );
     return;
   }
@@ -154,7 +214,9 @@ export async function mountScreen(screen: ListedScreen | undefined, dark: boolea
 
   root.render(
     <StrictMode>
-      <App />
+      <GalleryErrorBoundary screenName={screen.name}>
+        <App />
+      </GalleryErrorBoundary>
     </StrictMode>,
   );
 

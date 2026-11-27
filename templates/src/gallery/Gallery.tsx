@@ -1,7 +1,7 @@
 /**
  * Dev-only screen gallery (excluded from production build):
- * lists grouped screens on the left and renders the selected screen in an iframe
- * so mobile breakpoints apply accurately.
+ * self-contained CSS (zero Tailwind/UI-lib dependency) so the shell never breaks
+ * even if the host app does not use Tailwind or its stylesheet fails to load.
  */
 import { useEffect, useState } from "react";
 import { SCREENS } from "./catalog";
@@ -32,22 +32,235 @@ const idFromHash = () => {
 
 const GROUPS = [...new Set(SCREENS.map((s) => s.group))];
 
+const GALLERY_CSS = `
+.sg-shell {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  background: #f5f5f4;
+  color: #1c1917;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-sizing: border-box;
+}
+.sg-shell *, .sg-shell *::before, .sg-shell *::after {
+  box-sizing: border-box;
+}
+.sg-nav {
+  width: 288px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  border-right: 1px solid #e7e5e4;
+  background: #ffffff;
+}
+.sg-nav-header {
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid #e7e5e4;
+  background: #ffffff;
+  padding: 12px 16px;
+}
+.sg-nav-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sg-nav-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #78716c;
+}
+.sg-group {
+  padding: 8px;
+}
+.sg-group-title {
+  margin: 0;
+  padding: 0 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a8a29e;
+}
+.sg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sg-link {
+  display: flex;
+  gap: 8px;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+  color: #44403c;
+  text-decoration: none;
+}
+.sg-link:hover {
+  background: #f5f5f4;
+}
+.sg-link[aria-current="page"] {
+  background: #1c1917;
+  color: #ffffff;
+}
+.sg-link--state {
+  padding-left: 24px;
+}
+.sg-num {
+  width: 32px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+.sg-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.sg-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #e7e5e4;
+  background: #ffffff;
+  padding: 12px 16px;
+}
+.sg-select {
+  display: none;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #d6d3d1;
+  padding: 6px 8px;
+  font-size: 14px;
+  background: #ffffff;
+  color: #1c1917;
+}
+.sg-meta {
+  min-width: 0;
+  flex: 1;
+}
+.sg-crumb {
+  margin: 0;
+  font-size: 12px;
+  color: #78716c;
+}
+.sg-h1 {
+  margin: 2px 0;
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #57534e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.sg-toggle {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid #d6d3d1;
+  background: #ffffff;
+  padding: 2px;
+}
+.sg-toggle-btn {
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #57534e;
+  cursor: pointer;
+}
+.sg-toggle-btn:hover {
+  background: #f5f5f4;
+}
+.sg-toggle-btn[aria-pressed="true"] {
+  background: #1c1917;
+  color: #ffffff;
+}
+.sg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 8px;
+  border: 1px solid #d6d3d1;
+  background: #ffffff;
+  color: #1c1917;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.sg-btn:hover {
+  background: #f5f5f4;
+}
+.sg-stage {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  justify-content: center;
+  overflow: auto;
+  padding: 12px;
+}
+.sg-stage--mobile {
+  padding: 24px;
+}
+.sg-frame-desktop {
+  height: 100%;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #d6d3d1;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.sg-frame-mobile {
+  height: 772px;
+  width: 372px;
+  flex-shrink: 0;
+  border-radius: 28px;
+  border: 6px solid #292524;
+  background: #ffffff;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12);
+}
+@media (max-width: 899px) {
+  .sg-nav { display: none; }
+  .sg-select { display: block; }
+}
+`;
+
 function Toggle<T extends string>(props: {
   value: T;
   options: [T, string][];
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-stone-300 bg-white p-0.5 text-xs">
+    <div className="sg-toggle">
       {props.options.map(([v, label]) => (
         <button
           key={v}
           type="button"
           aria-pressed={props.value === v}
           onClick={() => props.onChange(v)}
-          className={`rounded-md px-2.5 py-1 ${
-            props.value === v ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"
-          }`}
+          className="sg-toggle-btn"
         >
           {label}
         </button>
@@ -80,29 +293,26 @@ export function Gallery() {
   const isMobile = pref.device === "mobile";
 
   return (
-    <div className="flex h-screen bg-stone-100 text-stone-900">
-      <nav className="hidden w-72 shrink-0 flex-col overflow-y-auto border-r border-stone-200 bg-white min-[900px]:flex">
-        <header className="sticky top-0 border-b border-stone-200 bg-white px-4 py-3">
-          <p className="text-sm font-semibold">Screen Gallery</p>
-          <p className="text-xs text-stone-500">{SCREENS.length} screens, synthetic data</p>
+    <div className="sg-shell">
+      <style>{GALLERY_CSS}</style>
+      <nav className="sg-nav">
+        <header className="sg-nav-header">
+          <p className="sg-nav-title">Screen Gallery</p>
+          <p className="sg-nav-sub">{SCREENS.length} screens, synthetic data</p>
         </header>
         {GROUPS.map((group) => (
-          <section key={group} className="px-2 py-2">
-            <h2 className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-stone-400">
-              {group}
-            </h2>
-            <ul>
+          <section key={group} className="sg-group">
+            <h2 className="sg-group-title">{group}</h2>
+            <ul className="sg-list">
               {SCREENS.filter((s) => s.group === group).map((s) => (
                 <li key={s.id}>
                   <a
                     href={`#${s.id}`}
                     aria-current={s.id === id ? "page" : undefined}
-                    className={`flex gap-2 rounded-md px-2 py-1 text-[13px] ${
-                      s.id === id ? "bg-stone-900 text-white" : "text-stone-700 hover:bg-stone-100"
-                    } ${s.number.includes("·") ? "pl-6" : ""}`}
+                    className={`sg-link ${s.number.includes("·") ? "sg-link--state" : ""}`}
                   >
-                    <span className="w-8 shrink-0 tabular-nums opacity-60">{s.number}</span>
-                    <span className="truncate">
+                    <span className="sg-num">{s.number}</span>
+                    <span className="sg-name">
                       {s.number.includes("·") ? s.name.split(": ")[1] : s.name}
                     </span>
                   </a>
@@ -113,15 +323,15 @@ export function Gallery() {
         ))}
       </nav>
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center gap-3 border-b border-stone-200 bg-white px-4 py-3">
+      <main className="sg-main">
+        <header className="sg-topbar">
           <select
             aria-label="Screen"
             value={id}
             onChange={(e) => {
               location.hash = e.target.value;
             }}
-            className="w-full rounded-md border border-stone-300 px-2 py-1 text-sm min-[900px]:hidden"
+            className="sg-select"
           >
             {GROUPS.map((group) => (
               <optgroup key={group} label={group}>
@@ -133,16 +343,16 @@ export function Gallery() {
               </optgroup>
             ))}
           </select>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-stone-500">
+          <div className="sg-meta">
+            <p className="sg-crumb">
               {screen?.group} · screen {index + 1} of {SCREENS.length} · <code>#{id}</code>
             </p>
-            <h1 className="truncate text-base font-semibold">
+            <h1 className="sg-h1">
               {screen?.number} {screen?.name}
             </h1>
-            <p className="truncate text-sm text-stone-600">{screen?.description}</p>
+            <p className="sg-desc">{screen?.description}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="sg-controls">
             <Toggle
               value={pref.device}
               options={[
@@ -159,18 +369,10 @@ export function Gallery() {
               ]}
               onChange={(theme) => setPref({ ...pref, theme })}
             />
-            <button
-              type="button"
-              onClick={() => go(-1)}
-              className="inline-flex items-center gap-1 rounded-lg border border-stone-300 bg-white px-2.5 py-1 text-xs hover:bg-stone-100"
-            >
+            <button type="button" onClick={() => go(-1)} className="sg-btn">
               ‹ Prev
             </button>
-            <button
-              type="button"
-              onClick={() => go(1)}
-              className="inline-flex items-center gap-1 rounded-lg border border-stone-300 bg-white px-2.5 py-1 text-xs hover:bg-stone-100"
-            >
+            <button type="button" onClick={() => go(1)} className="sg-btn">
               Next ›
             </button>
             <a
@@ -178,26 +380,18 @@ export function Gallery() {
               target="_blank"
               rel="noreferrer"
               title="Open isolated screen in new tab"
-              className="rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs hover:bg-stone-100"
+              className="sg-btn"
             >
               ↗
             </a>
           </div>
         </header>
-        <div
-          className={`flex min-h-0 flex-1 justify-center overflow-auto ${
-            isMobile ? "p-6" : "p-3"
-          }`}
-        >
+        <div className={`sg-stage ${isMobile ? "sg-stage--mobile" : ""}`}>
           <iframe
             key={src}
             src={src}
             title={screen?.name ?? "Screen"}
-            className={
-              isMobile
-                ? "h-[772px] w-[372px] shrink-0 rounded-[28px] border-[6px] border-stone-800 bg-white shadow-xl"
-                : "h-full w-full rounded-lg border border-stone-300 bg-white shadow-sm"
-            }
+            className={isMobile ? "sg-frame-mobile" : "sg-frame-desktop"}
           />
         </div>
       </main>

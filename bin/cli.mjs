@@ -10,13 +10,22 @@ function printHelp() {
   console.log(`screen-gallery — Zero-config full-page dev gallery for Vite + React
 
 Usage:
-  screen-gallery init [options]
+  screen-gallery init [--dir <path>] [--force]
+  screen-gallery add-screen <name> [--group <group>] [--path <route>] [--auth] [--dir <path>]
+  screen-gallery add-component <name> [--group <group>] [--dir <path>]
+  screen-gallery check [--dir <path>]
 
-Options:
-  --dir <path>   Target web app root (defaults to current directory)
-  --force        Overwrite existing gallery files
-  -h, --help     Show this help message
+Commands:
+  init            Scaffold gallery.html and src/gallery/* in your frontend root
+  add-screen      Print a ready-to-paste screen entry for src/gallery/catalog.ts
+  add-component   Print a ready-to-paste isolated component entry for src/gallery/catalog.ts
+  check           Verify required gallery files exist in the target directory
 `);
+}
+
+function getFlag(args, flag, fallback = undefined) {
+  const idx = args.indexOf(flag);
+  return idx !== -1 && args[idx + 1] && !args[idx + 1].startsWith("-") ? args[idx + 1] : fallback;
 }
 
 function copyTemplates(targetDir, force) {
@@ -50,6 +59,77 @@ function copyTemplates(targetDir, force) {
   console.log("Start Vite and open: http://localhost:5173/gallery.html");
 }
 
+function cmdAddScreen(args) {
+  const name = args.filter((a) => !a.startsWith("-"))[1];
+  if (!name) {
+    console.error("Missing screen name. Example: screen-gallery add-screen Billing --path /billing --auth");
+    process.exit(1);
+  }
+  const group = getFlag(args, "--group", args.includes("--auth") ? "Authenticated" : "Visitor");
+  const route = getFlag(args, "--path", `/${name.toLowerCase().replace(/\s+/g, "-")}`);
+  const isAuth = args.includes("--auth");
+
+  const authApi = isAuth
+    ? `        "GET /api/me": { body: { id: "user-1", name: "Alex Silva", email: "alex.silva@example.test", role: "member" } },`
+    : `        "GET /api/me": { status: 401, body: { error: "unauthorized" } },`;
+
+  console.log(`// Add inside group "${group}" in src/gallery/catalog.ts:
+{
+  name: "${name}",
+  description: "${name} screen.",
+  path: "${route}",
+  api: {
+${authApi}
+  },
+  states: [
+    {
+      name: "loading",
+      description: "Pending data state.",
+      api: { "GET /api/me": { pending: true } },
+    },
+    {
+      name: "offline",
+      description: "Network error state.",
+      api: { "GET /api/me": { networkError: true } },
+    },
+  ],
+},`);
+}
+
+function cmdAddComponent(args) {
+  const name = args.filter((a) => !a.startsWith("-"))[1];
+  if (!name) {
+    console.error("Missing component name. Example: screen-gallery add-component PricingCard");
+    process.exit(1);
+  }
+  const group = getFlag(args, "--group", "Components");
+
+  console.log(`// Add inside group "${group}" in src/gallery/catalog.ts:
+{
+  name: "${name}",
+  description: "Isolated ${name} component preview.",
+  component: async () => (await import("../components/${name}")).${name},
+},`);
+}
+
+function cmdCheck(targetDir) {
+  const required = [
+    "gallery.html",
+    "src/gallery/main.tsx",
+    "src/gallery/Gallery.tsx",
+    "src/gallery/stage.tsx",
+    "src/gallery/catalog.ts",
+    "src/gallery/catalog.test.ts",
+  ];
+  let missing = 0;
+  for (const rel of required) {
+    const ok = fs.existsSync(path.join(targetDir, rel));
+    console.log(`  ${ok ? "ok   " : "miss "} ${rel}`);
+    if (!ok) missing++;
+  }
+  if (missing > 0) process.exit(1);
+}
+
 const args = process.argv.slice(2);
 const cmd = args.find((a) => !a.startsWith("-"));
 
@@ -58,14 +138,14 @@ if (args.includes("-h") || args.includes("--help") || !cmd) {
   process.exit(cmd ? 0 : 1);
 }
 
-if (cmd !== "init") {
+const targetDir = path.resolve(getFlag(args, "--dir", process.cwd()));
+
+if (cmd === "init") copyTemplates(targetDir, args.includes("--force"));
+else if (cmd === "add-screen") cmdAddScreen(args);
+else if (cmd === "add-component") cmdAddComponent(args);
+else if (cmd === "check") cmdCheck(targetDir);
+else {
   console.error(`Unknown command: ${cmd}`);
   printHelp();
   process.exit(1);
 }
-
-const dirIdx = args.indexOf("--dir");
-const targetDir = path.resolve(dirIdx !== -1 && args[dirIdx + 1] ? args[dirIdx + 1] : process.cwd());
-const force = args.includes("--force");
-
-copyTemplates(targetDir, force);
