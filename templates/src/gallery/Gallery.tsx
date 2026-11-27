@@ -3,13 +3,23 @@
  * self-contained monochrome CSS (zero Tailwind/UI-lib dependency) so the shell
  * never breaks even if the host app does not use Tailwind or its stylesheet fails to load.
  */
-import { useEffect, useRef, useState } from "react";
-import { SCREENS } from "./catalog";
+import { useEffect, useState } from "react";
+import { SCREENS, type ListedScreen } from "./catalog";
 
 type Preferences = {
   device: "desktop" | "mobile";
   theme: "light" | "dark";
   sidebar: boolean;
+};
+
+type SlotState = {
+  active: 0 | 1;
+  srcs: [string | null, string | null];
+};
+
+type GroupedEntry = {
+  parent: ListedScreen;
+  states: ListedScreen[];
 };
 
 const STORAGE_KEY = "dev:screen-gallery";
@@ -34,15 +44,29 @@ const idFromHash = () => {
 
 const GROUPS = [...new Set(SCREENS.map((s) => s.group))];
 
+function groupScreens(items: ListedScreen[]): GroupedEntry[] {
+  const entries: GroupedEntry[] = [];
+  for (const item of items) {
+    if (!item.number.includes("·")) {
+      entries.push({ parent: item, states: [] });
+    } else if (entries.length > 0) {
+      entries[entries.length - 1]!.states.push(item);
+    } else {
+      entries.push({ parent: item, states: [] });
+    }
+  }
+  return entries;
+}
+
 const GALLERY_CSS = `
 .sg-shell {
-  --sg-bg: #f4f4f5;
+  --sg-bg: #f5f5f5;
   --sg-surface: #ffffff;
   --sg-surface-hover: #f4f4f5;
   --sg-border: #e4e4e7;
-  --sg-text: #000000;
+  --sg-text: #111111;
   --sg-muted: #71717a;
-  --sg-active-bg: #000000;
+  --sg-active-bg: #111111;
   --sg-active-text: #ffffff;
   --sg-frame-bg: #ffffff;
   display: flex;
@@ -54,14 +78,14 @@ const GALLERY_CSS = `
   box-sizing: border-box;
 }
 .sg-shell[data-theme="dark"] {
-  --sg-bg: #000000;
-  --sg-surface: #0a0a0a;
-  --sg-surface-hover: #18181b;
+  --sg-bg: #0a0a0a;
+  --sg-surface: #141414;
+  --sg-surface-hover: #1f1f23;
   --sg-border: #27272a;
-  --sg-text: #ffffff;
+  --sg-text: #f5f5f5;
   --sg-muted: #a1a1aa;
-  --sg-active-bg: #ffffff;
-  --sg-active-text: #000000;
+  --sg-active-bg: #f5f5f5;
+  --sg-active-text: #0a0a0a;
   --sg-frame-bg: #000000;
 }
 .sg-shell *, .sg-shell *::before, .sg-shell *::after {
@@ -75,7 +99,7 @@ const GALLERY_CSS = `
   display: none;
 }
 .sg-nav {
-  width: 216px;
+  width: 232px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -158,16 +182,23 @@ const GALLERY_CSS = `
   margin: 2px 0 0;
   padding: 0;
 }
+.sg-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .sg-link {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
   border-radius: 6px;
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--sg-text);
   text-decoration: none;
-  opacity: 0.82;
+  opacity: 0.84;
 }
 .sg-link:hover {
   background: var(--sg-surface-hover);
@@ -180,8 +211,23 @@ const GALLERY_CSS = `
   font-weight: 600;
 }
 .sg-link--state {
-  padding-left: 20px;
-  font-size: 11px;
+  padding-left: 22px;
+  font-size: 12px;
+}
+.sg-subtoggle {
+  flex-shrink: 0;
+  border: 1px solid var(--sg-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--sg-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 5px;
+  cursor: pointer;
+}
+.sg-subtoggle:hover {
+  color: var(--sg-text);
+  background: var(--sg-surface-hover);
 }
 .sg-num {
   width: 26px;
@@ -299,23 +345,38 @@ const GALLERY_CSS = `
 .sg-stage--mobile {
   padding: 20px;
 }
+.sg-slot-wrap {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+.sg-slot-wrap--mobile {
+  height: 772px;
+  width: 372px;
+  flex-shrink: 0;
+}
 .sg-frame-desktop {
+  position: absolute;
+  inset: 0;
   height: 100%;
   width: 100%;
   border-radius: 8px;
   border: 1px solid var(--sg-border);
   background: var(--sg-frame-bg);
-  transition: opacity 100ms ease;
 }
 .sg-frame-mobile {
-  height: 772px;
-  width: 372px;
-  flex-shrink: 0;
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
   border-radius: 28px;
   border: 6px solid #18181b;
   background: var(--sg-frame-bg);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);
-  transition: opacity 100ms ease;
+}
+.sg-frame--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 @media (max-width: 899px) {
   .sg-nav { display: none; }
@@ -350,9 +411,8 @@ export function Gallery() {
   const [id, setId] = useState(idFromHash);
   const [pref, setPref] = useState(readPreferences);
   const [query, setQuery] = useState("");
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [iframeReady, setIframeReady] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [openStates, setOpenStates] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const onHashChange = () => setId(idFromHash());
@@ -372,23 +432,36 @@ export function Gallery() {
   };
   const base = location.pathname.endsWith(".html") ? location.pathname : "/gallery";
   const src = `${base}?screen=${id}&theme=${pref.theme}`;
-  const [initialSrc] = useState(src);
   const isMobile = pref.device === "mobile";
 
-  const syncIframe = () => {
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "sg:render", screenId: id, dark: pref.theme === "dark" },
-      "*",
-    );
-  };
+  // Two fixed iframe slots eliminate white-flash when switching screens or themes:
+  // new route loads hidden in the inactive slot, swaps on onLoad, and clears the old slot.
+  const [slots, setSlots] = useState<SlotState>(() => ({ active: 0, srcs: [src, null] }));
 
   useEffect(() => {
-    if (iframeReady) syncIframe();
-  }, [id, pref.theme, iframeReady]);
+    setSlots((prev) => {
+      if (prev.srcs[prev.active] === src) return prev;
+      const inactive: 0 | 1 = prev.active === 0 ? 1 : 0;
+      if (prev.srcs[inactive] === src) return prev;
+      const next: [string | null, string | null] = [...prev.srcs] as [string | null, string | null];
+      next[inactive] = src;
+      return { ...prev, srcs: next };
+    });
+  }, [src]);
+
+  const handleSlotLoad = (slotIdx: 0 | 1) => {
+    setSlots((prev) => {
+      if (prev.srcs[slotIdx] !== src || prev.active === slotIdx) return prev;
+      const oldIdx: 0 | 1 = slotIdx === 0 ? 1 : 0;
+      const next: [string | null, string | null] = [...prev.srcs] as [string | null, string | null];
+      next[oldIdx] = null;
+      return { active: slotIdx, srcs: next };
+    });
+  };
 
   const q = query.trim().toLowerCase();
-  const matches = (name: string, group: string) =>
-    !q || name.toLowerCase().includes(q) || group.toLowerCase().includes(q);
+  const matches = (s: ListedScreen, group: string) =>
+    !q || s.name.toLowerCase().includes(q) || group.toLowerCase().includes(q);
 
   return (
     <div className="sg-shell" data-theme={pref.theme}>
@@ -407,37 +480,83 @@ export function Gallery() {
           />
         </header>
         {GROUPS.map((group) => {
-          const items = SCREENS.filter((s) => s.group === group && matches(s.name, group));
-          if (items.length === 0) return null;
-          const isOpen = q ? true : !collapsed[group];
+          const allInGroup = SCREENS.filter((s) => s.group === group);
+          const entries = groupScreens(allInGroup)
+            .map((entry) => {
+              const parentMatches = matches(entry.parent, group);
+              const matchingStates = entry.states.filter((st) => matches(st, group));
+              if (!parentMatches && matchingStates.length === 0) return null;
+              return {
+                parent: entry.parent,
+                states: q && !parentMatches ? matchingStates : entry.states,
+              };
+            })
+            .filter((e): e is GroupedEntry => e !== null);
+          if (entries.length === 0) return null;
+          const isOpen = q ? true : !collapsedGroups[group];
           return (
             <section key={group} className="sg-group">
               <button
                 type="button"
-                onClick={() => setCollapsed((prev) => ({ ...prev, [group]: !prev[group] }))}
+                onClick={() => setCollapsedGroups((prev) => ({ ...prev, [group]: !prev[group] }))}
                 className="sg-group-btn"
               >
                 <span>
                   {isOpen ? "▾" : "▸"} {group}
                 </span>
-                <span className="sg-group-count">{items.length}</span>
+                <span className="sg-group-count">{allInGroup.length}</span>
               </button>
               {isOpen && (
                 <ul className="sg-list">
-                  {items.map((s) => (
-                    <li key={s.id}>
-                      <a
-                        href={`#${s.id}`}
-                        aria-current={s.id === id ? "page" : undefined}
-                        className={`sg-link ${s.number.includes("·") ? "sg-link--state" : ""}`}
-                      >
-                        <span className="sg-num">{s.number}</span>
-                        <span className="sg-name">
-                          {s.number.includes("·") ? s.name.split(": ")[1] : s.name}
-                        </span>
-                      </a>
-                    </li>
-                  ))}
+                  {entries.map(({ parent, states }) => {
+                    const hasActiveState = states.some((st) => st.id === id);
+                    const statesOpen = Boolean(q) || hasActiveState || Boolean(openStates[parent.id]);
+                    return (
+                      <li key={parent.id}>
+                        <div className="sg-row">
+                          <a
+                            href={`#${parent.id}`}
+                            aria-current={parent.id === id ? "page" : undefined}
+                            className="sg-link"
+                          >
+                            <span className="sg-num">{parent.number}</span>
+                            <span className="sg-name">{parent.name}</span>
+                          </a>
+                          {states.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenStates((prev) => ({
+                                  ...prev,
+                                  [parent.id]: !prev[parent.id],
+                                }))
+                              }
+                              title={`${statesOpen ? "Hide" : "Show"} ${states.length} state(s)`}
+                              className="sg-subtoggle"
+                            >
+                              {statesOpen ? "▾" : "▸"} {states.length}
+                            </button>
+                          )}
+                        </div>
+                        {statesOpen && states.length > 0 && (
+                          <ul className="sg-list">
+                            {states.map((st) => (
+                              <li key={st.id}>
+                                <a
+                                  href={`#${st.id}`}
+                                  aria-current={st.id === id ? "page" : undefined}
+                                  className="sg-link sg-link--state"
+                                >
+                                  <span className="sg-num">{st.number}</span>
+                                  <span className="sg-name">{st.name.split(": ")[1] ?? st.name}</span>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -516,17 +635,24 @@ export function Gallery() {
           </div>
         </header>
         <div className={`sg-stage sg-scroll ${isMobile ? "sg-stage--mobile" : ""}`}>
-          <iframe
-            ref={iframeRef}
-            src={initialSrc}
-            onLoad={() => {
-              setIframeReady(true);
-              syncIframe();
-            }}
-            style={{ opacity: iframeReady ? 1 : 0 }}
-            title={screen?.name ?? "Screen"}
-            className={isMobile ? "sg-frame-mobile" : "sg-frame-desktop"}
-          />
+          <div className={`sg-slot-wrap ${isMobile ? "sg-slot-wrap--mobile" : ""}`}>
+            {([0, 1] as const).map((slotIdx) => {
+              const slotSrc = slots.srcs[slotIdx];
+              if (!slotSrc) return null;
+              const isHidden = slots.active !== slotIdx;
+              return (
+                <iframe
+                  key={`slot-${slotIdx}-${pref.theme}`}
+                  src={slotSrc}
+                  onLoad={() => handleSlotLoad(slotIdx)}
+                  title={screen?.name ?? "Screen"}
+                  className={`${isMobile ? "sg-frame-mobile" : "sg-frame-desktop"} ${
+                    isHidden ? "sg-frame--hidden" : ""
+                  }`}
+                />
+              );
+            })}
+          </div>
         </div>
       </main>
     </div>
