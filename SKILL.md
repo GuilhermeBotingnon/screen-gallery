@@ -21,7 +21,7 @@ node <skill-dir>/bin/cli.mjs check          # Verify all gallery files exist
 ## Workflow for AI Agents
 
 1. **Scaffold**: Run `init` in the target frontend workspace. The gallery shell uses self-contained CSS (no Tailwind dependency).
-2. **Discover routes & auth**: Inspect the router (`App.tsx`), `fetch` endpoints, and auth/session checks.
+2. **Discover routes, global shells & exact API shapes**: Inspect the router (`App.tsx`), any global authenticated shell/layout (e.g. `AppShell`, navbar notifications/polling), and every `fetch("/api/...")` call. **Never guess mock JSON payloads**: read the TypeScript types or consumer code to match the exact expected shape (arrays as `[]`, nested objects, etc.) so components don't crash on `undefined.map()`.
 3. **Mandatory Auth Mocking**: If the app has login or protected routes, **you MUST mock the session endpoint** (e.g., `GET /api/me`, `GET /api/auth/session`) and/or auth token in `storage` for every authenticated screen (and `401` for visitor screens). Otherwise protected routes stay stuck on a loading spinner or render a blank/gray screen.
 4. **Shared `process.env` check**: If shared modules read `process.env.NODE_ENV` in a Vite browser context, add `define: { "process.env.NODE_ENV": JSON.stringify("development") }` to `vite.config.ts`. `stage.tsx` includes a `GalleryErrorBoundary` and global error handlers to surface runtime errors clearly.
 5. **Catalog screens & components**:

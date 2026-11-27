@@ -70,7 +70,7 @@ If your app has login or protected routes, **always mock your session endpoint**
 }
 ```
 
-Without a session mock, protected routes often stay stuck on a loading spinner or render a blank/gray screen.
+Without a session mock, protected routes often stay stuck on a loading spinner or render a blank/gray screen. Also make sure to mock any endpoints called by your global layout/shell (e.g. notifications, polling) using the exact JSON shape expected by the frontend types.
 
 > **Tip for Next.js / shared monorepo code:** If shared files read `process.env.NODE_ENV`, add `define: { "process.env.NODE_ENV": JSON.stringify("development") }` in your `vite.config.ts`. Any runtime error is caught and displayed by `GalleryErrorBoundary`.
 
