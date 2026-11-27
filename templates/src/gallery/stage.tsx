@@ -104,13 +104,13 @@ const isVisible = (el: Element) => el.getClientRects().length > 0;
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 
 function fieldByName(name: string): Field | null {
-  const labels = [...document.querySelectorAll("label")].filter(isVisible);
+  const labels = Array.from(document.querySelectorAll("label")).filter(isVisible);
   const label =
     labels.find((l) => l.textContent?.trim() === name) ??
     labels.find((l) => l.textContent?.trim().startsWith(name));
   if (label?.control) return label.control as Field;
   return (
-    [...document.querySelectorAll<Field>("input, textarea, select")]
+    Array.from(document.querySelectorAll<Field>("input, textarea, select"))
       .filter(isVisible)
       .find(
         (c) =>
@@ -131,7 +131,7 @@ const helper: StepHelper = {
   async click(text) {
     const target = await waitFor(
       () =>
-        [...document.querySelectorAll<HTMLElement>("button, a, [role=tab]")]
+        Array.from(document.querySelectorAll<HTMLElement>("button, a, [role=tab]"))
           .filter((el) => isVisible(el) && !(el as HTMLButtonElement).disabled)
           .find((el) =>
             [el.textContent, el.getAttribute("aria-label"), el.title].some(
@@ -149,7 +149,7 @@ const helper: StepHelper = {
   async scroll(heading) {
     const target = await waitFor(
       () =>
-        [...document.querySelectorAll("h1, h2, h3")].find((h) => h.textContent?.trim() === heading),
+        Array.from(document.querySelectorAll("h1, h2, h3")).find((h) => h.textContent?.trim() === heading),
       `heading "${heading}"`,
     );
     target.scrollIntoView({ block: "start" });
@@ -244,7 +244,10 @@ export async function mountScreen(screen: ListedScreen | undefined, dark: boolea
   window.confirm = () => true;
 
   const screenUrl = location.href;
-  import.meta.hot?.on("vite:beforeFullReload", () => history.replaceState(null, "", screenUrl));
+  (import.meta as ImportMeta & { hot?: { on: (e: string, cb: () => void) => void } }).hot?.on(
+    "vite:beforeFullReload",
+    () => history.replaceState(null, "", screenUrl),
+  );
   history.replaceState(null, "", screen.path ?? "/");
 
   root.render(
